@@ -21,7 +21,7 @@ void usage(char *progname) {
 }
 
 
-uint16_t get_dirent(struct direntry *dirent, char *buffer)
+uint16_t get_dirent( struct direntry *dirent, char *buffer)
 {
     uint16_t followclust = 0;
 
@@ -30,11 +30,11 @@ uint16_t get_dirent(struct direntry *dirent, char *buffer)
     int i;
     char name[9];
     char extension[4];
-    uint16_t file_cluster;
+   
     name[8] = ' ';
     extension[3] = ' ';
-    memcpy(name, &(dirent->deName[0]), 8);
-    memcpy(extension, dirent->deExtension, 3);
+    //memcpy(name, &(dirent->deName[0]), 8);
+    //memcpy(extension, dirent->deExtension, 3);
 
     if (name[0] == SLOT_EMPTY)
     {
@@ -80,30 +80,30 @@ uint16_t get_dirent(struct direntry *dirent, char *buffer)
     }
     else if ((dirent->deAttributes & ATTR_DIRECTORY) != 0) 
     {
+	printf("in first else if");
         // don't deal with hidden directories; MacOS makes these
         // for trash directories and such; just ignore them.
 	if ((dirent->deAttributes & ATTR_HIDDEN) != ATTR_HIDDEN)
         {
-            //strcpy(buffer, name);
-            file_cluster = getushort(dirent->deStartCluster);
-            followclust = file_cluster;
+            strcpy(buffer, name);
+            followclust = getushort(dirent->deStartCluster);
+            
         }
     }
     else 
     {
+	printf("in final else");
         /*
          * a "regular" file entry
          * print attributes, size, starting cluster, etc.
          */
-        //strcpy(buffer, name);
-        /*if (strlen(extension))  
+        strcpy(buffer, name);
+        if (strlen(extension))  
         {
             strcat(buffer, ".");
             strcat(buffer, extension);
-        }*/
-	file_cluster = getushort(dirent->deStartCluster);
-	printf("we normal file cluster!!!!!");
-        followclust = file_cluster;
+        }
+	followclust = getushort(dirent->deStartCluster);
 	
     }
     return followclust;
@@ -115,7 +115,7 @@ void follow_dir(uint8_t *image_buf, struct bpb33* bpb)
 {
 	uint16_t cluster = 0;
 	uint16_t followclust;
-	char *buffer=NULL;
+	char buffer[9];
 	
 	printf("in folowdir loop\n");
         struct direntry *dirent = (struct direntry*)cluster_to_addr(cluster, image_buf, bpb);
@@ -134,45 +134,52 @@ void follow_dir(uint8_t *image_buf, struct bpb33* bpb)
 		//find actual number of clusters
 		//printf("getfatentry: %hu\n" , get_fat_entry(followclust, image_buf, bpb));
 		//printf("clust to add: %s\n" , cluster_to_addr(followclust, image_buf, bpb));
-		uint16_t i = followclust;
+		uint16_t z = followclust;
 		int actual = 0;
-		while (!is_end_of_file(i)) {
-			actual++;
-			i++;
-		}
-		printf("Actual clusters: %i \n",actual);
-		if (expected_num_clust>actual) {
-			printf("Inconsistent cluster numbers\n");
-			uint32_t diff = getulong(expected_num_clust - actual);
-			//update rootdir info and metadata
-			uint32_t currentsize = realsize-clustersize*diff;
-			putulong(dirent->deFileSize, currentsize);
-			bpb->bpbResSectors -= diff * bpb->bpbSecPerClust;
-		}
-
-		else if (expected_num_clust<actual) {
-			printf("print name here\n");
-			uint16_t j = i+1;
-			while (j<=actual) {
-				// free the cluster at index j
-				set_fat_entry(j, CLUST_FREE, image_buf, bpb);
+		
+		if(followclust == 0) {
+			printf("followclust was 0");		
 			}
-		}
-		else {
-			printf("they the same");
+		else  {
+			while (!is_end_of_file(z)) {
+				actual++;
+				z++;
+				}
+			printf("Actual clusters: %i \n",actual);
+			
+			if (expected_num_clust>actual) {
+				printf("Inconsistent cluster numbers\n");
+				uint32_t diff = expected_num_clust - actual;
+				//update rootdir info and metadata
+				uint32_t currentsize = realsize-clustersize*diff;
+				putulong(dirent->deFileSize, currentsize);
+				bpb->bpbResSectors -= diff * bpb->bpbSecPerClust;
 			}
-		/*for (i = 2; i < total_clusters; i++) 
-		    {
-			if (get_fat_entry(i, image_buf, bpb) == CLUST_FREE) 
-			{
-			    break;
+
+			else if (expected_num_clust<actual) {
+				printf("print name here\n");
+				uint16_t j = z+1;
+				while (j<=actual) {
+					// free the cluster at index j
+					set_fat_entry(j, CLUST_FREE, image_buf, bpb);
+					j++;
+				}
 			}
-		    }*/		
+			else {
+				printf("they the same \n \n");
+				}
+			/*for (i = 2; i < total_clusters; i++) 
+			    {
+				if (get_fat_entry(i, image_buf, bpb) == CLUST_FREE) 
+				{
+				    break;
+				}
+			    }*/		
 
-		}
-            
-
-
+			}
+		    
+		
+	}
 
 		
 printf("lsknfsdlknfsklnf");
