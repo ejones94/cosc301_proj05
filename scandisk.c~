@@ -24,6 +24,16 @@
 // the hints told us we needed 
 int desperation[4096] ={0}; 
 
+void find_orphans(uint8_t *image_buf, struct bpb33* bpb) {
+	for(int i=0; i<4096, i++) {
+		if (desperation[i]==0){
+			if(get_fat_entry(i,image_buf,pbp)!=FAT12_MASK&CLUST_FREE) {
+				set_fat_entry(i, FAT12_MASK&CLUST_FREE, image_buf, bpb);
+				}
+			}
+		}
+	}
+
 
 int compare(char *filename, uint16_t followclust, struct direntry *dirent, uint8_t *image_buf, struct bpb33* bpb){
 
@@ -254,6 +264,11 @@ void traverse_root(char * filename, uint8_t *image_buf, struct bpb33* bpb)
         dirent++;
     }
 printf("finished going through stuff\n");
+	//
+	find_orphans(image_buf, bpb);
+			
+			
+		
 }
 
 
@@ -283,7 +298,8 @@ int main(int argc, char** argv)
     return 0;
 }
 
-
-
+/*Hi professor Sommers!
+ As you see by some of our variable names we have been struggling pretty hard on this project. We cant even test our code becasuse the next cluster we look at always returns 0 and we dont know why. We have spent at 20-25 hours trying to fix it and are totally unsure how to progress. We came to office hours on thrusday but the line was far to long and we had class at 1:20. I know it is our fault that we didn't get a chance to see you, but we have tried to implent as much code as we could with the problems we have been having. I feel like our code should work and we have made 1 stupid mistake, but we just cant seem to find it. WE HAVE REWRITTEN OUR ENTIRE CODE TWICE. WE ARE GOING MAD. that is all. Have a good break. 
+*/
 
 
