@@ -268,25 +268,37 @@ int compare(uint16_t followclust, struct direntry *dirent, uint8_t *image_buf, s
 	uint32_t realsize = getulong(dirent->deFileSize);
 	uint32_t clustersize = bpb->bpbSecPerClust*bpb->bpbBytesPerSec;
 	int expected_num_clust = (realsize+511)/clustersize;
-	printf("expected= %i",expected_num_clust);
+	printf("expected= %i\n",expected_num_clust);
 	//find actual
 	uint16_t fatent = get_fat_entry(followclust, image_buf, bpb);
 	uint16_t prev_fatent = fatent;
 	int count = 1;
 
 	while(!is_end_of_file(fatent)) {
-		if (count==expected_num_clust) {
-			set_fat_entry(prev_fatent,FAT12_MASK&CLUST_EOFS, image_buf, bpb);
-			set_fat_entry(fatent, FAT12_MASK&CLUST_FREE, image_buf, bpb);
-			fatent=get_fat_entry(fatent, image_buf, bpb);
-			count++;
+		uint16_t temp =get_fat_entry(fatent, image_buf, bpb);
+		if (fatent == (FAT12_MASK & CLUST_BAD)){
+			printf("Bad cluster");
+			set_fat_entry(fatent, FAT12_MASK&CLUST_EOFS, image_buf, bpb);
+			return count;
 			}
-		else if (count> expected_num_clust) {
-			set_fat_entry(fatent, FAT12_MASK&CLUST_FREE, image_buf, bpb);
-			fatent=get_fat_entry(fatent, image_buf, bpb);
+		
+		if(count>=expected_num_clust)	
+			{	
+			
+			if (count==expected_num_clust) {
+				printf("count is greater\n");
+				set_fat_entry(prev_fatent,FAT12_MASK&CLUST_EOFS, image_buf, bpb);
+				set_fat_entry(fatent, FAT12_MASK&CLUST_FREE, image_buf, bpb);
+			
+				}
+		
+			else {
+				set_fat_entry(fatent, FAT12_MASK&CLUST_FREE, image_buf, bpb);
+			
+				}
+			
+			fatent=temp;
 			count++;
-
-
 			}
 		
 		else {
@@ -295,11 +307,12 @@ int compare(uint16_t followclust, struct direntry *dirent, uint8_t *image_buf, s
 			count++;
 			}
 			
+		
 		}
 	if (expected_num_clust>count){
 		uint32_t clustersize = bpb->bpbSecPerClust*bpb->bpbBytesPerSec;
 		putulong(dirent->deFileSize, (count*clustersize));
-		printf("FUck this: %s", getulong(dirent->deFileSize));
+		printf("FUck this: %d\n", getulong(dirent->deFileSize));
 	}
 	return count;
 }
@@ -369,18 +382,18 @@ uint16_t print_dirent(struct direntry *dirent, int indent)
         // for trash directories and such; just ignore them.
 	if ((dirent->deAttributes & ATTR_HIDDEN) != ATTR_HIDDEN)
         {
-	    print_indent(indent);
-    	    printf("%s/ (directory)\n", name);
+	    
+    	    //printf("%s/ (directory)\n", name);
             file_cluster = getushort(dirent->deStartCluster);
             followclust = file_cluster;
         }
     }
     else 
     {
-        /*
-         * a "regular" file entry
-         * print attributes, size, starting cluster, etc.
-         */
+        
+         // a "regular" file entry
+        //  print attributes, size, starting cluster, etc.
+         printf("regular file entry\n");
 	int ro = (dirent->deAttributes & ATTR_READONLY) == ATTR_READONLY;
 	int hidden = (dirent->deAttributes & ATTR_HIDDEN) == ATTR_HIDDEN;
 	int sys = (dirent->deAttributes & ATTR_SYSTEM) == ATTR_SYSTEM;
@@ -388,7 +401,9 @@ uint16_t print_dirent(struct direntry *dirent, int indent)
 
 	size = getulong(dirent->deFileSize);
 	
-
+	file_cluster =getushort(dirent->deStartCluster);
+	followclust = file_cluster;	
+	printf("followclust: %i\n", followclust);
 	print_indent(indent);
 	printf("%s.%s (%u bytes) (starting cluster %d) %c%c%c%c\n", 
 	       name, extension, size, getushort(dirent->deStartCluster),
@@ -410,13 +425,19 @@ void follow_dir(uint16_t cluster, int indent,
         struct direntry *dirent = (struct direntry*)cluster_to_addr(cluster, image_buf, bpb);
 
         int numDirEntries = (bpb->bpbBytesPerSec * bpb->bpbSecPerClust) / sizeof(struct direntry);
-        int i = 0;
-	for ( ; i < numDirEntries; i++)
+     
+	for ( int i=0; i < numDirEntries; i++)
 	{
             
-            uint16_t followclust = print_dirent(dirent, indent);
-		int count=compare(followclust,dirent,image_buf,bpb)
-		printf("count: %i", count);
+   		uint16_t followclust = print_dirent(dirent, indent);
+		int count = -1;
+		if (followclust!= 0) {
+			count=compare(followclust,dirent,image_buf,bpb);
+			}
+		else {
+			printf("followclust was 0\n");
+			}		
+		printf("count: %i\n", count);
             if (followclust)
                 follow_dir(followclust, indent+1, image_buf, bpb);
             dirent++;
@@ -429,6 +450,7 @@ void follow_dir(uint16_t cluster, int indent,
 
 void traverse_root(uint8_t *image_buf, struct bpb33* bpb)
 {
+	
     uint16_t cluster = 0;
 
     struct direntry *dirent = (struct direntry*)cluster_to_addr(cluster, image_buf, bpb);
@@ -437,11 +459,13 @@ void traverse_root(uint8_t *image_buf, struct bpb33* bpb)
     for ( ; i < bpb->bpbRootDirEnts; i++)
     {
         uint16_t followclust = print_dirent(dirent, 0);
-        if (is_valid_cluster(followclust, bpb))
+        if (is_valid_cluster(followclust, bpb)) {
             follow_dir(followclust, 1, image_buf, bpb);
-
+		printf("Cluster is valid\n");
+		}
         dirent++;
     }
+printf("finished going through stuff\n");
 }
 
 
