@@ -62,7 +62,9 @@ int compare(char *filename, uint16_t followclust, struct direntry *dirent, uint8
 			
 			if (count==expected_num_clust) {  //will only happen once
 				printf("count is greater\n");
-				//will 
+				//will set the previous entry to be eof and fee the current cluster
+				//will also set desperation =2 at the eof and 3 at the free cluster
+				// this is becasue we want a record in desperation of free normal or not looked at clusters
 				set_fat_entry(prev_fatent,FAT12_MASK&CLUST_EOFS, image_buf, bpb);
 				desperation[followclust+count-1]=2;
 				set_fat_entry(fatent, FAT12_MASK&CLUST_FREE, image_buf, bpb);
@@ -72,15 +74,19 @@ int compare(char *filename, uint16_t followclust, struct direntry *dirent, uint8
 				}
 		
 			else {
+				// if we are over the size just free current cluster
 				set_fat_entry(fatent, FAT12_MASK&CLUST_FREE, image_buf, bpb);
 			
 				}
+			//when count is over expected we will put 3 in every cluster over size eof
 			desperation[followclust+count]=3;
 			fatent=temp;
 			count++;
 			}
 		
 		else {
+
+			//if we are still running through the clusters then if we find a free set it as 3 or if it is just normal then set it as 1
 			if (fatent == (FAT12_MASK&CLUST_FREE)) {
 				printf("FREE CLUSTER BEFORE EOF WEEWOOWEEWOO");
 				desperation[followclust+count]=3;
@@ -96,11 +102,14 @@ int compare(char *filename, uint16_t followclust, struct direntry *dirent, uint8
 			
 		
 		}
+	desperation[followclust+count]=2;//set this block as an eof in desperation
 	if (expected_num_clust>count){
+		//if at the end cluster is greater than expected change the size in the meta data to be what the fat size is
 		uint32_t clustersize = bpb->bpbSecPerClust*bpb->bpbBytesPerSec;
 		putulong(dirent->deFileSize, (count*clustersize));
 		printf("File is inconsistant!!! name is: %s \n", filename);
 	}
+	//loop through the current files clusters on desperation and until you hit the eof
 	int i= followclust;
 	int countgucci=0;
 	while (desperation[i]!=2)
@@ -109,6 +118,7 @@ int compare(char *filename, uint16_t followclust, struct direntry *dirent, uint8
 			countgucci++;
 			}
 		}
+	//put the newsize into the metadata
 	putulong(dirent->deFileSize, (countgucci*clustersize));
 	return count;
 }

@@ -24,10 +24,11 @@
 // the hints told us we needed 
 int desperation[4096] ={0}; 
 
-void find_orphans(uint8_t *image_buf, struct bpb33* bpb) {
+void find_orphans(uint8_t *image_buf, struct bpb33* bpb) {//looks through the array we made and looks for clusters we didnt touch
 	for(int i=0; i<4096, i++) {
 		if (desperation[i]==0){
 			if(get_fat_entry(i,image_buf,pbp)!=FAT12_MASK&CLUST_FREE) {
+				//if finds one we didnt touch and it is not currently set free this will free it
 				set_fat_entry(i, FAT12_MASK&CLUST_FREE, image_buf, bpb);
 				}
 			}
@@ -36,19 +37,19 @@ void find_orphans(uint8_t *image_buf, struct bpb33* bpb) {
 
 
 int compare(char *filename, uint16_t followclust, struct direntry *dirent, uint8_t *image_buf, struct bpb33* bpb){
-
+	//will loop through fat until eof marking the good/bad/free clusters and freeing them
 	uint32_t realsize = getulong(dirent->deFileSize);
 	uint32_t clustersize = bpb->bpbSecPerClust*bpb->bpbBytesPerSec;
-	int expected_num_clust = (realsize+511)/clustersize;
-	//printf("expected= %i\n",expected_num_clust);
-	//find actual
+	int expected_num_clust = (realsize+511)/clustersize;  // finds num clusters according to the meta data
+	
+	//find actual num clusters in fat
 	uint16_t fatent = get_fat_entry(followclust, image_buf, bpb);
 	uint16_t prev_fatent = fatent;
 	int count = 1;
 	
-	while(!is_end_of_file(fatent)) {
+	while(!is_end_of_file(fatent)) {  //loops through checking if eof
 		uint16_t temp =get_fat_entry(fatent, image_buf, bpb);
-		if (fatent == (FAT12_MASK & CLUST_BAD)){
+		if (fatent == (FAT12_MASK & CLUST_BAD)){ //if the fatent is bad it will mark it in the array
 			printf("Bad cluster");
 			desperation[followclust+count]=-1;
 			printf("File is inconsistant: name is: %s\n",filename);
@@ -56,11 +57,12 @@ int compare(char *filename, uint16_t followclust, struct direntry *dirent, uint8
 		
 		
 
-		if(count>=expected_num_clust)	
+		if(count>=expected_num_clust)	//if we have more clusters than expected
 			{	
 			
-			if (count==expected_num_clust) {
+			if (count==expected_num_clust) {  //will only happen once
 				printf("count is greater\n");
+				//will 
 				set_fat_entry(prev_fatent,FAT12_MASK&CLUST_EOFS, image_buf, bpb);
 				desperation[followclust+count-1]=2;
 				set_fat_entry(fatent, FAT12_MASK&CLUST_FREE, image_buf, bpb);
